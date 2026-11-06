@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pilah Sampah AI - DelTech",
-  description: "Asisten Pilah Sampah AI untuk Bali",
+  title: "DelTech - Asisten Pilah Sampah AI",
+  description: "Pilah sampah dengan AI, kumpulkan poin, dan selamatkan Bali.",
 };
 
 export default function RootLayout({
