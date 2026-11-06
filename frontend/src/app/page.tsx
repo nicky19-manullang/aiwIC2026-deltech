@@ -29,6 +29,7 @@ type ClassifyResponse = {
   items: ClassifyItem[];
   saved: boolean;
   streak: StreakInfo;
+  points_earned: number;
 };
 
 // --- KOMPONEN IKON SVG ---
@@ -369,7 +370,7 @@ export default function Home() {
               </div>
               <div>
                 <h4 className="font-bold text-lg">Berhasil Dicatat!</h4>
-                <p className="text-emerald-100 text-sm">Kamu mendapatkan +10 Poin Hijau.</p>
+                    <p className="text-emerald-100 text-sm">Kamu mendapatkan +{result.points_earned} Poin Hijau.</p>
               </div>
             </div>
 

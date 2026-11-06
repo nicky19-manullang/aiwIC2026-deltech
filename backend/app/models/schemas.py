@@ -26,3 +26,4 @@ class ClassifyResponse(BaseModel):
     items: List[ClassifyItem]
     saved: bool = False
     streak: StreakInfo
+    points_earned: int = 10

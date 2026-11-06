@@ -59,12 +59,21 @@ async def classify(
     if result.is_rejected or not result.items:
         raise HTTPException(400, detail=result.rejection_reason or "Gambar ditolak.")
     
-    # 1. Simpan kontribusi
+    # --- LOGIKA POIN DINAMIS ---
+    jumlah_item = len(result.items)
+    if jumlah_item >= 3:
+        poin_didapat = 10
+    else:
+        poin_didapat = jumlah_item
+    # ----------------------------
+
+    # 1. Simpan kontribusi dan update poin
     main_item = result.items[0]
     success = save_contribution(
         user_id=user_id, 
         label=main_item.label, 
-        confidence=main_item.confidence
+        confidence=main_item.confidence,
+        points_earned=poin_didapat
     )
     
     if not success:
@@ -87,5 +96,6 @@ async def classify(
     return ClassifyResponse(
         items=response_items, 
         saved=success,
-        streak=StreakInfo(**streak_data) # Kirim data streak ke frontend
+        streak=StreakInfo(**streak_data),
+        points_earned=poin_didapat
     )
