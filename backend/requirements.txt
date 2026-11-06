@@ -6,3 +6,4 @@ google-genai
 pydantic
 supabase
 Pillow
+python-jose
