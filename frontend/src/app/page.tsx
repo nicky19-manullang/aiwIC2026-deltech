@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -22,7 +22,7 @@ type StreakInfo = {
   longest_streak: number;
   badges: string[];
   earned_badge: string | null;
-  already_scanned_today: boolean; // Tambahan untuk cek harian
+  already_scanned_today: boolean;
 };
 
 type ClassifyResponse = {
@@ -57,6 +57,11 @@ export default function Home() {
   const [result, setResult] = useState<ClassifyResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // --- STATE UNTUK WEBCAM LAPTOP ---
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -67,7 +72,6 @@ export default function Home() {
       
       setUser(session.user);
 
-      // Ambil data nama dari tabel profiles
       const { data: profileData } = await supabase
         .from("profiles")
         .select("full_name, avatar_url")
@@ -87,6 +91,56 @@ export default function Home() {
     checkUser();
   }, [router]);
 
+  // --- FUNGSI KAMERA ---
+  const startCamera = async () => {
+    setIsCameraOpen(true);
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment" } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      setError("Gagal mengakses kamera. Pastikan izin kamera diberikan.");
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setIsCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext("2d");
+
+      if (context) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
+            setImage(file);
+            setPreview(URL.createObjectURL(file));
+            setResult(null);
+            stopCamera();
+          }
+        }, "image/jpeg", 0.8);
+      }
+    }
+  };
+
+  // --- FUNGSI UPLOAD FILE/GALERI ---
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -144,6 +198,7 @@ export default function Home() {
     setImage(null);
     setResult(null);
     setError(null);
+    stopCamera();
   };
 
   if (!user) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-emerald-600 font-medium">Memeriksa sesi...</div>;
@@ -177,16 +232,56 @@ export default function Home() {
           <p className="text-slate-500 mt-1 text-sm">Yuk, mulai pilah sampahmu hari ini.</p>
         </div>
 
-        {/* Area Upload */}
-        {!preview && !result && (
-          <label className="group relative bg-white border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-3xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 hover:bg-emerald-50/50 shadow-sm">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        {/* TAMPILAN KAMERA LAPTOP (WEBCAM) */}
+        {isCameraOpen && (
+          <div className="bg-black rounded-3xl overflow-hidden shadow-lg mb-4 relative flex flex-col">
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="w-full h-auto max-h-[60vh] object-cover"
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent flex justify-center gap-4">
+              <button 
+                onClick={stopCamera} 
+                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-full text-sm font-medium backdrop-blur-sm transition"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={capturePhoto} 
+                className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-emerald-500/30 transition flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+                Jepret
+              </button>
             </div>
-            <p className="text-emerald-800 font-semibold mb-1">Ambil Foto Sampah</p>
-            <p className="text-slate-400 text-xs text-center">Pastikan pencahayaan cukup dan sampah terlihat jelas</p>
-            <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-          </label>
+          </div>
+        )}
+
+        {/* Area Upload - Dua Pilihan */}
+        {!preview && !result && !isCameraOpen && (
+          <div className="space-y-4">
+            {/* Tombol Kamera (Webcam) */}
+            <button 
+              onClick={startCamera}
+              className="group w-full relative bg-white border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-3xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 hover:bg-emerald-50/50 shadow-sm"
+            >
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </div>
+              <p className="text-emerald-800 font-bold text-lg mb-1">Buka Kamera</p>
+              <p className="text-slate-400 text-xs text-center">Ambil foto sampah secara langsung</p>
+            </button>
+
+            {/* Tombol Galeri (Sekunder) */}
+            <label className="flex items-center justify-center w-full bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-2xl py-3.5 cursor-pointer transition-colors">
+              <svg className="w-5 h-5 text-slate-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span className="text-sm font-semibold text-slate-700">Pilih dari Galeri</span>
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            </label>
+          </div>
         )}
 
         {/* Preview & Tombol Proses */}
@@ -282,7 +377,6 @@ export default function Home() {
             {result.streak && (
               <>
                 {!result.streak.already_scanned_today ? (
-                  // Tampil jika ini scan PERTAMA hari ini
                   <div className="bg-orange-50 border border-orange-200 rounded-3xl p-5 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center">
@@ -301,7 +395,6 @@ export default function Home() {
                     )}
                   </div>
                 ) : (
-                  // Tampil jika user sudah scan hari ini (tidak dapat streak baru)
                   <div className="bg-slate-100 border border-slate-200 rounded-3xl p-4 text-center shadow-sm">
                     <p className="text-sm text-slate-500 font-medium">
                       🔥 Kamu sudah menjaga streak <strong>{result.streak.current_streak} hari</strong> hari ini. Scan lagi besok untuk melanjutkan!
